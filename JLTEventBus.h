@@ -16,7 +16,7 @@ typedef void(^JLTEventHandlerBlock)(id event);
 - (void)postEvent:(id)event forType:(id)type;
 
 - (id)registerEventHandlerBlock:(JLTEventHandlerBlock)eventHandlerBlock forType:(id)type;
-- (void)unregisterHandler:(id)eventHandler;
+- (void)unregisterEventHandler:(id)eventHandler;
 
 + (instancetype)defaultBus;
 

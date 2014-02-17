@@ -47,7 +47,7 @@
     return observer;
 }
 
-- (void)unregisterHandler:(id)eventHandler
+- (void)unregisterEventHandler:(id)eventHandler
 {
     NSParameterAssert(eventHandler);
 

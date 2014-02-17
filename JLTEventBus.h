@@ -8,6 +8,16 @@
 
 #import <Foundation/Foundation.h>
 
+typedef void(^JLTEventHandlerBlock)(id event);
+
 @interface JLTEventBus : NSObject
+
+- (void)postEvent:(id)event;
+- (void)postEvent:(id)event forType:(id)type;
+
+- (id)registerEventHandlerBlock:(JLTEventHandlerBlock)eventHandlerBlock forType:(id)type;
+- (void)unregisterHandler:(id)eventHandler;
+
++ (instancetype)defaultBus;
 
 @end

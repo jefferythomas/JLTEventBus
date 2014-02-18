@@ -13,10 +13,13 @@ typedef void(^JLTEventHandlerBlock)(id event);
 @interface JLTEventBus : NSObject
 
 - (void)postEvent:(id)event;
-- (void)postEvent:(id)event forType:(id)type;
 
-- (id)registerEventHandlerBlock:(JLTEventHandlerBlock)eventHandlerBlock forType:(id)type;
+- (void)registerEventHandler:(id)eventHandler;
 - (void)unregisterEventHandler:(id)eventHandler;
+
+- (void)postEvent:(id)event forType:(id)type;
+- (void)registerEventHandler:(id)eventHandler selector:(SEL)selector forType:(id)type;
+- (id)registerEventHandlerBlock:(JLTEventHandlerBlock)eventHandlerBlock forType:(id)type;
 
 + (instancetype)defaultBus;
 

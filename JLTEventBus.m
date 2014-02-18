@@ -11,6 +11,7 @@
 
 @interface JLTEventBus ()
 @property (nonatomic, readonly) NSNotificationCenter *jlt_center;
+@property (nonatomic, readonly) NSMutableDictionary *jlt_eventHandlers;
 @end
 
 @implementation JLTEventBus
@@ -21,37 +22,96 @@
 
     [self postEvent:event forType:[event class]];
 
-    for (NSValue *protocol in [[self class] jlt_allProtocolForClass:[event class]])
-        [self postEvent:event forType:[protocol nonretainedObjectValue]];
+    for (Protocol *protocol in [[self class] jlt_allProtocolsForClass:[event class]]) {
+        [self postEvent:event forType:protocol];
+    }
 }
 
-- (void)postEvent:(id)event forType:(id)type
+- (void)registerEventHandler:(id)eventHandler
 {
-    NSParameterAssert(event);
+    NSParameterAssert(eventHandler);
 
-    NSString *token = [[self class] jlt_tokenFromType:type];
-    [self.jlt_center postNotificationName:token object:event];
-}
+    for (NSValue *selectorValue in [[self class] jlt_allSelectorsForClass:[eventHandler class]]) {
+        SEL selector = [selectorValue pointerValue];
+        NSString *selectorString = NSStringFromSelector(selector);
 
-- (id)registerEventHandlerBlock:(JLTEventHandlerBlock)eventHandlerBlock forType:(id)type
-{
-    NSParameterAssert(eventHandlerBlock);
+        if (![selectorString hasPrefix:@"onEvent"] || ![selectorString hasSuffix:@":"])
+            continue;
 
-    NSString *token = [[self class] jlt_tokenFromType:type];
-    NSNotificationCenter *center = self.jlt_center;
+        NSUInteger onEventLen = [@"onEvent" length];
+        NSUInteger colonLen = [@":" length];
+        NSRange range = NSMakeRange(onEventLen, [selectorString length] - onEventLen - colonLen);
 
-    id observer = [center addObserverForName:token object:nil queue:nil usingBlock:^(NSNotification *note) {
-        eventHandlerBlock(note.object);
-    }];
+        NSString *typeString = [selectorString substringWithRange:range];
 
-    return observer;
+        Protocol *protocol = NSProtocolFromString(typeString);
+        if (protocol)
+            [self registerEventHandler:eventHandler selector:selector forType:protocol];
+
+        Class aClass = NSClassFromString(typeString);
+        if (aClass)
+            [self registerEventHandler:eventHandler selector:selector forType:aClass];
+    }
 }
 
 - (void)unregisterEventHandler:(id)eventHandler
 {
     NSParameterAssert(eventHandler);
+    NSNumber *hash = @([eventHandler hash]);
 
-    [self.jlt_center removeObserver:eventHandler];
+    if (self.jlt_eventHandlers[hash]) {
+        for (id observer in self.jlt_eventHandlers[hash]) {
+            [self.jlt_center removeObserver:observer];
+        }
+
+        [self.jlt_eventHandlers removeObjectForKey:hash];
+    } else {
+        [self.jlt_center removeObserver:eventHandler];
+    }
+}
+
+- (void)postEvent:(id)event forType:(id)type
+{
+    NSParameterAssert(event);
+    NSString *token = [[self class] jlt_tokenFromType:type];
+
+    [self.jlt_center postNotificationName:token object:event];
+}
+
+- (void)registerEventHandler:(id)eventHandler selector:(SEL)selector forType:(id)type
+{
+    NSParameterAssert(eventHandler);
+    NSParameterAssert(selector);
+    NSNumber *hash = @([eventHandler hash]);
+    NSString *token = [[self class] jlt_tokenFromType:type];
+
+    id o = [self.jlt_center addObserverForName:token object:nil queue:nil usingBlock:^(NSNotification *note) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        [eventHandler performSelector:selector withObject:note.object];
+#pragma clang diagnostic pop
+    }];
+
+    NSMutableArray *observers = self.jlt_eventHandlers[hash];
+
+    if (observers) {
+        [observers addObject:o];
+    } else {
+        observers = [NSMutableArray arrayWithObject:o];
+        self.jlt_eventHandlers[hash] = observers;
+    }
+}
+
+- (id)registerEventHandlerBlock:(JLTEventHandlerBlock)eventHandlerBlock forType:(id)type
+{
+    NSParameterAssert(eventHandlerBlock);
+    NSString *token = [[self class] jlt_tokenFromType:type];
+
+    id o = [self.jlt_center addObserverForName:token object:nil queue:nil usingBlock:^(NSNotification *note) {
+        eventHandlerBlock(note.object);
+    }];
+
+    return o;
 }
 
 + (instancetype)defaultBus
@@ -79,19 +139,35 @@
     }
 }
 
-+ (NSArray *)jlt_allProtocolForClass:(Class)class
++ (NSArray *)jlt_allProtocolsForClass:(Class)aClass
 {
     NSMutableArray *result = [NSMutableArray array];
-    Protocol * __unsafe_unretained *protocols = class_copyProtocolList(class, NULL);
+    Protocol * __unsafe_unretained *protocols = class_copyProtocolList(aClass, NULL);
 
     if (!protocols)
         return result;
 
-    for (Protocol * __unsafe_unretained *p = protocols; *p; ++p) {
-        [result addObject:[NSValue valueWithNonretainedObject:*p]];
+    for (Protocol * __unsafe_unretained *protocol = protocols; *protocol; ++protocol) {
+        [result addObject:*protocol];
     }
 
     free(protocols);
+    return result;
+}
+
++ (NSArray *)jlt_allSelectorsForClass:(Class)aClass
+{
+    NSMutableArray *result = [NSMutableArray array];
+    Method *methods = class_copyMethodList(aClass, NULL);
+
+    if (!methods)
+        return result;
+
+    for (Method *method = methods; *method; ++method) {
+        [result addObject:[NSValue valueWithPointer:method_getName(*method)]];
+    }
+
+    free(methods);
     return result;
 }
 
@@ -102,6 +178,7 @@
     self = [super init];
     if (self) {
         _jlt_center = [NSNotificationCenter new];
+        _jlt_eventHandlers = [NSMutableDictionary dictionary];
     }
     return self;
 }

@@ -35,10 +35,10 @@
         SEL selector = [selectorValue pointerValue];
         NSString *selectorString = NSStringFromSelector(selector);
 
-        if (![selectorString hasPrefix:@"onEvent"] || ![selectorString hasSuffix:@":"])
+        if (![selectorString hasPrefix:@"on"] || ![selectorString hasSuffix:@":"])
             continue;
 
-        NSUInteger onEventLen = [@"onEvent" length];
+        NSUInteger onEventLen = [@"on" length];
         NSUInteger colonLen = [@":" length];
         NSRange range = NSMakeRange(onEventLen, [selectorString length] - onEventLen - colonLen);
 

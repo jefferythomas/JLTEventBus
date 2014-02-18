@@ -4,7 +4,7 @@ JLTEventBus is based on [Guava EventBus](https://code.google.com/p/guava-librari
 
 ##Events
 
-Events are classes or protocols. Unlike `NSNotification` where the notification is identified as a string, events are identified by there type.
+Events are classes or protocols. Unlike `NSNotification` where the notification is identified as a string, events are identified by their type.
 
     @interface UserDidChange : NSObject
     @property (nonatomic) User *currentUser;
